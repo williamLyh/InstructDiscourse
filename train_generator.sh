@@ -6,5 +6,5 @@ python3 step_generator.py --preprocessed_data_path='/home/yinhong/Documents/data
                             --batch_size=4\
                             --eval_steps=20000\
                             --save_steps=500000\
-                            --logging_steps=100\
+                            --logging_steps=500\
                             --warmup_steps=100
