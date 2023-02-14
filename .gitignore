@@ -1,1 +1,4 @@
 *.ipynb
+baseline-checkpoint/
+*.sh
+__pycache__/
