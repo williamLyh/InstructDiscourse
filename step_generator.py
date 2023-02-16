@@ -59,55 +59,32 @@ def batch_encode(input, reference, tokenizer, input_max_length=1024, output_max_
     encoding['labels'][encoding['labels'] == tokenizer.pad_token_id] = -100
     return encoding
 
-class T5InferenceDataset(Dataset):
-    def __init__(self, data, stage_tags=None, tokenizer=None, input_max_length=256, output_max_length=1024):
-        self.text = data['text']
-        self.tags = data['stage_plan']
+class T5StepLevelInferenceDataset(Dataset):
+    def __init__(self, data, stage_tags=None, tokenizer=None):
+        self.headline = data['headline']
+        self.input_context = data['input_context']
+        self.target_text = data['target_text']
+        self.stage_label = data['stage_label']
+        # self.tags = data['stage_plan']
         self.tokenizer = tokenizer
-        self.input_max_length = input_max_length
-        self.output_max_length = output_max_length
         if stage_tags:
             self.stage_tags = stage_tags
         else:
-            self.stage_tags = ['Main', 'Main_Consequence', 'Cause_Specific', 'Cause_General', 'Distant_Historical',
-                                'Distant_Expectations_Consequences', 'Distant_Evaluation', 'Distant_Anecdotal']
+            self.stage_tags = ['main event', 'consequence', 'previous event', 'current context', 'historical event',
+                                'funture consequences', 'journalist evaluation', 'anecdotal event']
 
     def __len__(self):
-        return len(self.text)
+        return len(self.headline)
 
     def __getitem__(self, idx):        
-        headline, article = self.text[idx].split('Article:')
-        headline = headline.split('Title:')[-1].strip()
-        # output_text = article.strip()#.replace('\n', tokenizer.pad_token)
-        # instruction_prompt = 'Generate a news article about {}. Using the following instructions as plan: {}'.format(headline)
-        # input_text = 'Generate a news article about ' + headline + '. Using the following instructions as plan: '
-        tag_string = ''
-        for tag in self.tags[idx]:
-            tag_string += self.stage_tags[tag] + ', '
-        instruction_prompt = 'Generate a news article about {}. Using the following instructions as plan: {}'.format(
-                                headline, tag_string)
-
-        # instruction_prompt = 'Continue writing a {} section for the below news article about {}.'
-
-        encoded_input = self.tokenizer(instruction_prompt, 
-                                    max_length=self.input_max_length, 
-                                    truncation=True,
-                                    padding='max_length',
-                                    return_tensors='pt')
-
-        # encoded_output = self.tokenizer(output_text,
-        #                             max_length=self.output_max_length,
-        #                             truncation=True,
-        #                             padding='max_length',
-        #                             return_tensors='pt')
-
-        encoding = {'input_ids': encoded_input.input_ids.squeeze(0)}
-        # encoding['labels'] = encoded_output.input_ids.squeeze(0)
-        encoding['attention_mask'] = encoded_input.attention_mask.squeeze(0)
-        # encoding['labels'][encoding['labels'] == self.tokenizer.pad_token_id] = -100
-        # encoding['decoder_input_ids'] = shift_tokens_right(encoding['labels'].unsqueeze(0), self.tokenizer.pad_token_id,self.tokenizer.pad_token_id).squeeze(0)
-
-        return encoding
+        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+                            self.stage_tags[self.stage_label[idx]], 
+                            self.headline[idx],
+                            self.input_context[idx]
+                            )
+        return {'instruction': instruction_prompt,
+                'target_text': self.target_text[idx],
+        }
 
 
 def eval_model(args, model, data_loader, device):

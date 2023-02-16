@@ -15,10 +15,10 @@ from torch.utils.data import Dataset, DataLoader
 
 class T5DocLevelTrainingDataset(Dataset):
     def __init__(self, data, stage_tags=None, tokenizer=None):
-        self.headline = data['headline']
-        self.input_context = data['input_context']
+        # self.headline = data['headline']
+        self.input_text = data['input_text']
         self.target_text = data['target_text']
-        self.stage_label = data['stage_label']
+        # self.stage_label = data['stage_label']
         # self.tags = data['stage_plan']
         self.tokenizer = tokenizer
         if stage_tags:
@@ -31,11 +31,14 @@ class T5DocLevelTrainingDataset(Dataset):
         return len(self.headline)
 
     def __getitem__(self, idx):        
-        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                            self.stage_tags[self.stage_label[idx]], 
-                            self.headline[idx],
-                            self.input_context[idx]
-                            )
+        instruction_prompt = 'Rewrite and polish the following article with the same discourse structure: {}'.format(
+            self.input_text[idx]
+        )
+        # 'Continue writing a {} section for the below news article about {}: {}'.format(
+        #                     self.stage_tags[self.stage_label[idx]], 
+        #                     self.headline[idx],
+        #                     self.input_context[idx]
+        #                     )
         return {'instruction': instruction_prompt,
                 'target_text': self.target_text[idx],
         }
@@ -189,7 +192,8 @@ if __name__ == '__main__':
                                             tokenizer=tokenizer)
 
     valid_dataset = T5DocLevelTrainingDataset(data['valid_data'],
-                                            tokenizer=tokenizer)
+                                            tokenizer=tokenizer)    
+    print(train_dataset[0])
 
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True)
