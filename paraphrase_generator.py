@@ -13,7 +13,7 @@ import numpy as np
 import argparse
 from torch.utils.data import Dataset, DataLoader
 
-class T5StepLevelTrainingDataset(Dataset):
+class T5DocLevelTrainingDataset(Dataset):
     def __init__(self, data, stage_tags=None, tokenizer=None):
         self.headline = data['headline']
         self.input_context = data['input_context']
@@ -78,9 +78,6 @@ class T5InferenceDataset(Dataset):
     def __getitem__(self, idx):        
         headline, article = self.text[idx].split('Article:')
         headline = headline.split('Title:')[-1].strip()
-        # output_text = article.strip()#.replace('\n', tokenizer.pad_token)
-        # instruction_prompt = 'Generate a news article about {}. Using the following instructions as plan: {}'.format(headline)
-        # input_text = 'Generate a news article about ' + headline + '. Using the following instructions as plan: '
         tag_string = ''
         for tag in self.tags[idx]:
             tag_string += self.stage_tags[tag] + ', '
@@ -122,8 +119,8 @@ def eval_model(args, model, data_loader, device):
             batch_encoding = batch_encode(batch['instruction'], 
                         batch['target_text'], 
                         tokenizer, 
-                        input_max_length=1024, 
-                        output_max_length=256
+                        input_max_length=args.input_max_length, 
+                        output_max_length=args.output_max_length,
                         )
 
             if args.cuda_available:
@@ -152,9 +149,12 @@ if __name__ == '__main__':
     parser.add_argument('--model_saving_path', help='The path to save the trained model.')
     parser.add_argument('--lr', type=float)
     parser.add_argument('--l2_decay', type=float)
+    parser.add_argument('--input_max_length', type=int, default=1024)
+    parser.add_argument('--output_max_length', type=int, default=1024)
     parser.add_argument('--epoch', type=int)
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--save_steps', type=int)
+    parser.add_argument('--save_strategy', type=str, default=None)
     parser.add_argument('--eval_steps', type=int)
     parser.add_argument('--logging_steps', type=int, default=500, help='Print loss every this number of steps.')
     parser.add_argument('--warmup_steps', type=int, default=200)
@@ -185,16 +185,19 @@ if __name__ == '__main__':
     model = T5ForConditionalGeneration.from_pretrained(model_name)
     model = model.to(device)
 
-    train_dataset = T5StepLevelTrainingDataset(data['train_data'],
+    train_dataset = T5DocLevelTrainingDataset(data['train_data'],
                                             tokenizer=tokenizer)
 
-    valid_dataset = T5StepLevelTrainingDataset(data['valid_data'],
+    valid_dataset = T5DocLevelTrainingDataset(data['valid_data'],
                                             tokenizer=tokenizer)
 
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True)
 
     total_steps = args.epoch * len(train_data_loader)
+    if args.save_strategy == 'epoch':
+        args.save_steps = len(train_data_loader)
+
     print('total training steps is {}.\n Warmup steps is {}.\n Loss print for every {} step.\n'.format(total_steps, 
         args.warmup_steps, args.logging_steps))
     print('Epoch number is {}.\n Batch size is {}.'.format(args.epoch, args.batch_size))
@@ -211,6 +214,7 @@ if __name__ == '__main__':
     global_step = 0
     pbar=tqdm(total=total_steps)
     loss_sum = 0
+
     for epoch in range(args.epoch):
         for batch in train_data_loader:
             global_step += 1
@@ -218,8 +222,8 @@ if __name__ == '__main__':
             batch_encoding = batch_encode(batch['instruction'], 
                         batch['target_text'], 
                         tokenizer, 
-                        input_max_length=1024, 
-                        output_max_length=256
+                        input_max_length=args.input_max_length, 
+                        output_max_length=args.output_max_length,
                         )
             if cuda_available:
                 batch_input_ids = batch_encoding['input_ids'].cuda(device)
