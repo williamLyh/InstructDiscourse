@@ -99,8 +99,8 @@ def eval_model(args, model, data_loader, device):
             batch_encoding = batch_encode(batch['instruction'], 
                         batch['target_text'], 
                         tokenizer, 
-                        input_max_length=1024, 
-                        output_max_length=256
+                        input_max_length=args.input_max_length, 
+                        output_max_length=args.output_max_length
                         )
 
             if args.cuda_available:
@@ -133,6 +133,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--save_steps', type=int)
     parser.add_argument('--eval_steps', type=int)
+    parser.add_argument('--input_max_length', type=int, default=1024)
+    parser.add_argument('--output_max_length', type=int, default=1024)
     parser.add_argument('--logging_steps', type=int, default=500, help='Print loss every this number of steps.')
     parser.add_argument('--warmup_steps', type=int, default=200)
     args = parser.parse_args()
@@ -140,7 +142,6 @@ if __name__ == '__main__':
     if torch.cuda.is_available():
         print ('Cuda is available.')
     cuda_available = torch.cuda.is_available()
-    args.cuda_available = cuda_available
     multi_gpu_training = False
     if cuda_available:
         if torch.cuda.device_count() > 1:
@@ -151,6 +152,8 @@ if __name__ == '__main__':
     else:
         pass
     device = torch.device('cuda')
+    args.cuda_available = cuda_available
+    args.multi_gpu_training = multi_gpu_training
 
 
     # kaggle_data_path = '/home/yinhong/Documents/datasets/Kaggle_all_the_news/preprocessed_data.json'
@@ -161,6 +164,8 @@ if __name__ == '__main__':
     tokenizer = T5Tokenizer.from_pretrained(model_name)
     model = T5ForConditionalGeneration.from_pretrained(model_name)
     model = model.to(device)
+    if args.multi_gpu_training:
+        model = torch.nn.parallel.DataParallel(model)
 
     train_dataset = T5StepLevelTrainingDataset(data['train_data'],
                                             tokenizer=tokenizer)
@@ -195,8 +200,8 @@ if __name__ == '__main__':
             batch_encoding = batch_encode(batch['instruction'], 
                         batch['target_text'], 
                         tokenizer, 
-                        input_max_length=1024, 
-                        output_max_length=256
+                        input_max_length=args.input_max_length, 
+                        output_max_length=args.output_max_length
                         )
             if cuda_available:
                 batch_input_ids = batch_encoding['input_ids'].cuda(device)
@@ -238,7 +243,7 @@ if __name__ == '__main__':
                 else: 
                     os.makedirs(full_ckpt_save_path, exist_ok=True)
                 # save model
-                if multi_gpu_training:
+                if args.multi_gpu_training:
                     model.module.save_pretrained(full_ckpt_save_path)
                     tokenizer.save_pretrained(full_ckpt_save_path)
                 else:
