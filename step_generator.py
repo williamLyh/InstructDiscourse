@@ -111,13 +111,8 @@ def eval_model(args, model, data_loader, device):
             outputs = model(input_ids=batch_input_ids, 
                             attention_mask=batch_attention_mask, 
                             labels=batch_labels)
-            # print(outputs.loss)
-            # assert False
-            loss += outputs.loss.mean().item()            
 
-            # mle_loss, cl_loss = model(batch_input_ids, batch_attention_mask, args.margin)
-            # mle_loss_total += mle_loss.mean().item()
-            # cl_loss_total += cl_loss.mean().item()
+            loss += outputs.loss.mean().item()            
 
         print('Evaluate on validation set. The loss is {}'.format(loss/(eval_step*args.batch_size)))
     pbar.close()
@@ -127,6 +122,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--preprocessed_data_path', help='The path to the preprocessed data.')
     parser.add_argument('--model_saving_path', help='The path to save the trained model.')
+    parser.add_argument('--model_name', help='The name of the model to be trained.', default=None)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--l2_decay', type=float)
     parser.add_argument('--epoch', type=int)
@@ -156,11 +152,13 @@ if __name__ == '__main__':
     args.multi_gpu_training = multi_gpu_training
 
 
-    # kaggle_data_path = '/home/yinhong/Documents/datasets/Kaggle_all_the_news/preprocessed_data.json'
     with open(args.preprocessed_data_path) as outfile:
         data = json.load(outfile)
 
-    model_name = "google/flan-t5-base"
+    if args.model_name:
+        model_name = args.model_name
+    else:
+        model_name = "google/flan-t5-base"
     tokenizer = T5Tokenizer.from_pretrained(model_name)
     model = T5ForConditionalGeneration.from_pretrained(model_name)
     model = model.to(device)
