@@ -130,7 +130,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float)
     parser.add_argument('--l2_decay', type=float)
     parser.add_argument('--epoch', type=int)
-    parser.add_argument('--batch_size', type=int)
+    parser.add_argument('--batch_size_per_gpu', type=int)
     parser.add_argument('--save_steps', type=int)
     parser.add_argument('--eval_steps', type=int)
     parser.add_argument('--input_max_length', type=int, default=1024)
@@ -143,17 +143,21 @@ if __name__ == '__main__':
         print ('Cuda is available.')
     cuda_available = torch.cuda.is_available()
     multi_gpu_training = False
+    gpu_count = 0
     if cuda_available:
         if torch.cuda.device_count() > 1:
             multi_gpu_training = True
+            gpu_count = torch.cuda.device_count()
             print ('Using Multi-GPU training, number of GPU is {}'.format(torch.cuda.device_count()))
         else:
+            gpu_count = 1
             print ('Using single GPU training.')
     else:
         pass
     device = torch.device('cuda')
     args.cuda_available = cuda_available
     args.multi_gpu_training = multi_gpu_training
+    args.batch_size = args.batch_size_per_gpu * gpu_count
 
 
     # kaggle_data_path = '/home/yinhong/Documents/datasets/Kaggle_all_the_news/preprocessed_data.json'
@@ -166,7 +170,7 @@ if __name__ == '__main__':
     model = model.to(device)
     if args.multi_gpu_training:
         model = torch.nn.parallel.DataParallel(model)
-
+ 
     train_dataset = T5StepLevelTrainingDataset(data['train_data'],
                                             tokenizer=tokenizer)
 

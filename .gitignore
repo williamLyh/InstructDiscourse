@@ -3,3 +3,4 @@ baseline-checkpoint/
 *.sh
 __pycache__/
 .ipynb_checkpoints/
+baselines/
