@@ -7,9 +7,11 @@ import spacy
 from rouge import Rouge 
 from sacrebleu.metrics import BLEU, CHRF, TER
 import re
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import json
 import matplotlib.pyplot as plt
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
 def extract_instruction(text, return_list=False):
@@ -282,3 +284,67 @@ def evaluate_fluency(predicted_text, reference_text):
 
     # Meteor
     
+
+##################################################################
+## Stage Accuracy
+##################################################################
+
+def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_path):
+    '''Compute stage accuracy score
+    predicted_text: list of generated text (list of string)
+    reference_text: list of reference text (list of string)
+    stage_classifier_path: path to the stage classifier model
+    '''
+    class BertStageClassifierInferenceDataset(Dataset):
+        def __init__(self, data, tokenizer=None, max_length=256):
+            self.text = data
+            # self.tag = data['tag']
+            self.tokenizer = tokenizer
+            self.max_length = max_length
+
+        def __len__(self):
+            return len(self.text)
+
+        def __getitem__(self, idx):        
+            encoding_text = self.tokenizer(self.text[idx],
+                                    max_length=self.max_length,
+                                    truncation=True,
+                                    padding='max_length',
+                                    return_tensors='pt')#.input_ids
+            encoding = {'input_ids': encoding_text['input_ids'].squeeze(0)}
+            encoding['attention_mask'] = encoding_text['attention_mask'].squeeze(0)
+            return encoding
+
+
+    bert_tokenizer = AutoTokenizer.from_pretrained(stage_classifier_path)
+    model = AutoModelForSequenceClassification.from_pretrained(stage_classifier_path)
+    device = torch.device('cuda')
+    model = model.to(device)
+    model.eval()
+
+    batch_size = 32
+    prediction_dataset = BertStageClassifierInferenceDataset(predicted_text,
+                                            bert_tokenizer, max_length=256)
+    reference_dataset = BertStageClassifierInferenceDataset(reference_text,
+                                            bert_tokenizer, max_length=256)
+    prediction_loader = DataLoader(prediction_dataset, batch_size=batch_size)
+    reference_loader = DataLoader(reference_dataset, batch_size=batch_size)
+
+
+    valid_stage_labels = []
+    for batch in tqdm(prediction_loader):
+        outputs = model(batch['input_ids'].to(device),
+                        attention_mask = batch['attention_mask'].to(device))
+        class_score = torch.softmax(outputs.logits,dim=-1)
+        class_prediction = torch.argmax(class_score,dim=-1)
+        valid_stage_labels += class_prediction.tolist()
+
+    reference_stage_labels = []
+    for batch in tqdm(reference_loader):
+        outputs = model(batch['input_ids'].to(device),
+                        attention_mask = batch['attention_mask'].to(device))
+        class_score = torch.softmax(outputs.logits,dim=-1)
+        class_prediction = torch.argmax(class_score,dim=-1)
+        reference_stage_labels += class_prediction.tolist()
+
+    print('Stage accuracy: ', exact_match([valid_stage_labels], [reference_stage_labels]))

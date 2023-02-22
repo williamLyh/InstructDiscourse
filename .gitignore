@@ -4,3 +4,4 @@ baseline-checkpoint/
 __pycache__/
 .ipynb_checkpoints/
 baselines/
+model-checkpoint/
