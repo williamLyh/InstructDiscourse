@@ -24,14 +24,25 @@ class T5StepLevelTrainingDataset(Dataset):
         if stage_tags:
             self.stage_tags = stage_tags
         else:
-            self.stage_tags = ['main event', 'consequence', 'previous event', 'current context', 'historical event',
-                                'funture consequences', 'journalist evaluation', 'anecdotal event']
+            self.stage_tags = ['<main event>', '<consequence>', '<previous event>', '<current context>', 
+                               '<historical event>', '<funture consequences>', '<journalist evaluation>', 
+                               '<anecdotal event>']
 
     def __len__(self):
         return len(self.headline)
 
     def __getitem__(self, idx):        
-        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+        instruction_prompt = "The schema for discourse structure is defined below: "+\
+                "<main event>: The major subject of the news article. "+\
+                "<consequence>: An event or phenomenon that is caused by the main event. "+\
+                "<previous event>: A specific event that occurred shortly before the main event. "+\
+                "<current context>: The general context or worldstate immediately preceding the main event. "+\
+                "<historical event>: An event occurring much earlier than the main event. "+\
+                "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
+                "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
+                "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. "
+
+        instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
                             self.stage_tags[self.stage_label[idx]], 
                             self.headline[idx],
                             self.input_context[idx]
@@ -178,6 +189,8 @@ if __name__ == '__main__':
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True)
 
+    # print(train_dataset[0]['instruction'])
+    # assert False
     total_steps = args.epoch * len(train_data_loader)
     print('total training steps is {}.\n Warmup steps is {}.\n Loss print for every {} step.\n'.format(total_steps, 
         args.warmup_steps, args.logging_steps))

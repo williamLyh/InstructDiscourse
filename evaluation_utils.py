@@ -7,6 +7,7 @@ import spacy
 from rouge import Rouge 
 from sacrebleu.metrics import BLEU, CHRF, TER
 import re
+import re
 from torch.utils.data import Dataset, DataLoader
 import json
 import matplotlib.pyplot as plt
@@ -25,6 +26,17 @@ def extract_instruction(text, return_list=False):
     for token in stage_separation_tokens:
         text = text.replace(token, '')
     return text, text_list
+
+def sentence_splitter(text_doc, flat=False):
+    splitted_doc = []
+    for doc in text_doc:
+        ans = re.split('(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<![A-Z][a-z][a-z]\.)\
+(?<=\.|\?|\!|\’|\”)(?<![0-9]\.)\s(?!\w\.)(?=[A-Z])', doc)
+        if flat:
+            splitted_doc += ans
+        else:
+            splitted_doc.append(ans)
+    return splitted_doc
 
 ##################################################################
 ## N-gram Auxiliary Functions
@@ -289,7 +301,7 @@ def evaluate_fluency(predicted_text, reference_text):
 ## Stage Accuracy
 ##################################################################
 
-def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_path):
+def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_path, batch_size=32):
     '''Compute stage accuracy score
     predicted_text: list of generated text (list of string)
     reference_text: list of reference text (list of string)
@@ -322,7 +334,6 @@ def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_pat
     model = model.to(device)
     model.eval()
 
-    batch_size = 32
     prediction_dataset = BertStageClassifierInferenceDataset(predicted_text,
                                             bert_tokenizer, max_length=256)
     reference_dataset = BertStageClassifierInferenceDataset(reference_text,
