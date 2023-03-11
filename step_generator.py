@@ -3,7 +3,7 @@ from transformers import TrainingArguments, Trainer, Seq2SeqTrainer
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from transformers import DataCollatorWithPadding
 from transformers.models.bart.modeling_bart import shift_tokens_right
-from transformers.optimization import AdamW, get_linear_schedule_with_warmup
+from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 import os
 import json
 import torch 
@@ -12,6 +12,7 @@ import random
 import numpy as np
 import argparse
 from torch.utils.data import Dataset, DataLoader
+from accelerate import Accelerator
 
 class T5StepLevelTrainingDataset(Dataset):
     def __init__(self, data, stage_tags=None, tokenizer=None):
@@ -19,6 +20,8 @@ class T5StepLevelTrainingDataset(Dataset):
         self.input_context = data['input_context']
         self.target_text = data['target_text']
         self.stage_label = data['stage_label']
+        self.stage_plan = data['stage_plan']
+        self.sid = data['s_id']
         # self.tags = data['stage_plan']
         self.tokenizer = tokenizer
         if stage_tags:
@@ -32,6 +35,24 @@ class T5StepLevelTrainingDataset(Dataset):
         return len(self.headline)
 
     def __getitem__(self, idx):        
+        ## Instruction version 3: with Code and explanation
+        # instruction_prompt = "The schema for discourse structure is defined below: "+\
+        #         "<main event>: The major subject of the news article. "+\
+        #         "<consequence>: An event or phenomenon that is caused by the main event. "+\
+        #         "<previous event>: A specific event that occurred shortly before the main event. "+\
+        #         "<current context>: The general context or worldstate immediately preceding the main event. "+\
+        #         "<historical event>: An event occurring much earlier than the main event. "+\
+        #         "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
+        #         "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
+        #         "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. "
+
+        # instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
+        #                     self.stage_tags[self.stage_label[idx]], 
+        #                     self.headline[idx],
+        #                     self.input_context[idx]
+        #                     )
+        
+        # Instruction version 4: with Code, explanation, only previous stage context
         instruction_prompt = "The schema for discourse structure is defined below: "+\
                 "<main event>: The major subject of the news article. "+\
                 "<consequence>: An event or phenomenon that is caused by the main event. "+\
@@ -40,13 +61,41 @@ class T5StepLevelTrainingDataset(Dataset):
                 "<historical event>: An event occurring much earlier than the main event. "+\
                 "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
                 "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
-                "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. "
+                "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
+        if self.sid[idx] == 0:
+            instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
+                                self.stage_tags[self.stage_label[idx]], 
+                                self.headline[idx]
+                                )
+        else:
+            instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
+            ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
+            instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
+                                self.stage_tags[self.stage_label[idx]], 
+                                self.headline[idx]
+                                )
+            
+        # # Instruction version 4: with Code, explanation, only previous stage context
+        # instruction_prompt = "The schema for discourse structure is defined below: "+\
+        #         "<main event>: The major subject of the news article. "+\
+        #         "<consequence>: An event or phenomenon that is caused by the main event. "+\
+        #         "<previous event>: A specific event that occurred shortly before the main event. "+\
+        #         "<current context>: The general context or worldstate immediately preceding the main event. "+\
+        #         "<historical event>: An event occurring much earlier than the main event. "+\
+        #         "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
+        #         "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
+        #         "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
 
-        instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
-                            self.stage_tags[self.stage_label[idx]], 
-                            self.headline[idx],
-                            self.input_context[idx]
-                            )
+        # instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
+        # ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
+        # instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
+        # ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][self.sid[idx]+1:]]))
+        # instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
+        #                     self.stage_tags[self.stage_label[idx]], 
+        #                     self.headline[idx]
+        #                     )
+        
+        self.stage_label[idx]
         return {'instruction': instruction_prompt,
                 'target_text': self.target_text[idx],
         }
@@ -101,6 +150,7 @@ class T5StepLevelInferenceDataset(Dataset):
 def eval_model(args, model, data_loader, device):
     loss = 0
     eval_step = int(len(data_loader)*0.1)
+    print('Evaluate on validation set. The number of steps is {}'.format(eval_step))
     pbar = tqdm(total=eval_step)
     model.eval()
     with torch.no_grad():
@@ -140,6 +190,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size_per_gpu', type=int)
     parser.add_argument('--save_steps', type=int)
     parser.add_argument('--eval_steps', type=int)
+    parser.add_argument('--gradient_accumulation_step', type=int, default=1)
     parser.add_argument('--input_max_length', type=int, default=1024)
     parser.add_argument('--output_max_length', type=int, default=1024)
     parser.add_argument('--logging_steps', type=int, default=500, help='Print loss every this number of steps.')
@@ -187,7 +238,7 @@ if __name__ == '__main__':
                                             tokenizer=tokenizer)
 
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size, shuffle=True)
+    valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size*5, shuffle=True)
 
     # print(train_dataset[0]['instruction'])
     # assert False
@@ -197,9 +248,12 @@ if __name__ == '__main__':
     print('Epoch number is {}.\n Batch size is {}.'.format(args.epoch, args.batch_size))
 
     optimizer = AdamW(model.parameters(), lr=args.lr)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=total_steps)
+    scheduler = get_cosine_schedule_with_warmup(optimizer, 
+                                                num_warmup_steps=args.warmup_steps, 
+                                                num_training_steps=total_steps)
     optimizer.zero_grad()
-
+    
+    accelerator = Accelerator(gradient_accumulation_steps=args.gradient_accumulation_step)
     print ('--------------------------------------------------------------------------')
     print ('Start Training:')
     
@@ -207,41 +261,50 @@ if __name__ == '__main__':
 
     global_step = 0
     pbar=tqdm(total=total_steps)
-    loss_sum = 0
+    loss_sum_log = 0
+    loss_sum_to_optimize = 0
     for epoch in range(args.epoch):
-        for batch in train_data_loader:
-            global_step += 1
-            pbar.update(1)
-            batch_encoding = batch_encode(batch['instruction'], 
-                        batch['target_text'], 
-                        tokenizer, 
-                        input_max_length=args.input_max_length, 
-                        output_max_length=args.output_max_length
-                        )
-            if cuda_available:
-                batch_input_ids = batch_encoding['input_ids'].cuda(device)
-                batch_attention_mask = batch_encoding['attention_mask'].cuda(device)
-                batch_labels = batch_encoding['labels'].cuda(device)
+        for idx, batch in enumerate(train_data_loader):
+            with accelerator.accumulate(model):
+                global_step += 1
+                pbar.update(1)
+                batch_encoding = batch_encode(batch['instruction'], 
+                            batch['target_text'], 
+                            tokenizer, 
+                            input_max_length=args.input_max_length, 
+                            output_max_length=args.output_max_length
+                            )
+                if cuda_available:
+                    batch_input_ids = batch_encoding['input_ids'].cuda(device)
+                    batch_attention_mask = batch_encoding['attention_mask'].cuda(device)
+                    batch_labels = batch_encoding['labels'].cuda(device)
 
-            outputs = model(input_ids=batch_input_ids, 
-                            attention_mask=batch_attention_mask, 
-                            labels=batch_labels)
+                outputs = model(input_ids=batch_input_ids, 
+                                attention_mask=batch_attention_mask, 
+                                labels=batch_labels)
 
-            loss = outputs.loss.mean()
-            loss_sum += loss.item()
-            loss.backward()
+                loss = outputs.loss.mean()
+                # loss_sum_to_optimize += loss
+                loss.backward()                
+
+                loss_sum_log += loss.item()
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
             
-            # parameter update
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
+            # # parameter update
+            # if idx+1 % args.gradient_accumulation_step == 0:
+            #     optimizer.step()
+            #     scheduler.step()
+            #     optimizer.zero_grad()
+
 
             # print intermediate result
             if global_step % args.logging_steps == 0:
                 average_denominator = global_step * args.batch_size
-                print ('At training steps {}/{}, training loss is {},'.format(global_step, total_steps, loss_sum/args.logging_steps))
+                print ('At training steps {}/{}, training loss is {},'.format(global_step, total_steps, loss_sum_log/args.logging_steps))
                 print('The learning rate is {}.'.format(scheduler.get_last_lr()[0]))
-                loss_sum = 0
+                loss_sum_log = 0
 
             # intermediate evaluation using validation data 
             if global_step % args.eval_steps == 0:

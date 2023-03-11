@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+def split_bins(start=0, end=0, bins=4):
+    return tuple(np.ceil(np.linspace(start=start, stop=end, num=bins + 1)).astype(np.int32))
 
 def extract_instruction(text, return_list=False):
     text =  text.split('<INSTR_START> ')[1].split('<INSTR_END>')[0].strip()
@@ -37,6 +39,29 @@ def sentence_splitter(text_doc, flat=False):
         else:
             splitted_doc.append(ans)
     return splitted_doc
+
+# Reshape the sentence stage label to document level
+def reshape_stage_label_to_document_level(generated_stage_labels, reference_stage_labels, reference_doc):
+    '''The generated_stage_labels and reference_stage_labels are in flatten shape. 
+    This function reshape them to document level.
+    The reference_doc has the document level structure that we can use to reshape the stage labels.
+    '''
+    generated_stage_label_doc = []
+    reference_stage_label_doc = []
+
+    global_list_idx = 0
+    for doc_list in reference_doc.values():
+        temp_generated_stage_label = []
+        temp_reference_stage_label = []
+        for sid, sent in enumerate(doc_list):
+            temp_generated_stage_label.append(generated_stage_labels[global_list_idx])
+            temp_reference_stage_label.append(reference_stage_labels[global_list_idx])
+            global_list_idx += 1
+        generated_stage_label_doc.append(temp_generated_stage_label)
+        reference_stage_label_doc.append(temp_reference_stage_label)
+
+    generated_stage_label_doc[0], reference_stage_label_doc[0]
+    return generated_stage_label_doc, reference_stage_label_doc
 
 ##################################################################
 ## N-gram Auxiliary Functions
@@ -68,16 +93,17 @@ def plan_to_trigram(plan):
     return result
 
 
-def n_gram_match_rate(predict_seq, reference_seq, ngram=1):
-    if ngram==1:
+def n_gram_match_rate(predict_seq, reference_seq, n=1):
+    n_to_N_string = {1:'Unigram', 2:'Bigram', 3:'Trigram'}
+    if n==1:
         reference_ngram = [plan_to_unigram(plan) for plan in reference_seq]
         prediction_ngram = [plan_to_unigram(plan) for plan in predict_seq]
 
-    elif ngram==2:
+    elif n==2:
         reference_ngram = [plan_to_bigram(plan) for plan in reference_seq]
         prediction_ngram = [plan_to_bigram(plan) for plan in predict_seq]
 
-    elif ngram==3:
+    elif n==3:
         reference_ngram = [plan_to_trigram(plan) for plan in reference_seq]
         prediction_ngram = [plan_to_trigram(plan) for plan in predict_seq]
     else:
@@ -96,7 +122,8 @@ def n_gram_match_rate(predict_seq, reference_seq, ngram=1):
         if sum(ngram2_cnt.values()) != 0:
             match_rate = match_cnt / sum(ngram2_cnt.values())
             average_match_rate.append(match_rate)
-    print('Unigram match rates', np.mean(average_match_rate))
+    print('{} match rates'.format(n_to_N_string[n]), np.mean(average_match_rate))
+
 
 #####################################################################################
 # Recipe Auxiliary Functions
@@ -192,7 +219,7 @@ def compute_stage_matching(generation_doc_list, stage_reference_data):
 ##################################################################
 ## Visualization Functions
 ##################################################################
-def draw_bigram_heaatmap(stage_plan, stage_tag_mapping):
+def draw_bigram_heatmap(stage_plan, stage_tag_mapping):
     bigrams = [plan_to_bigram(plan) for plan in stage_plan]
     bigrams = [bi for bigs in bigrams for bi in bigs]
     bigram_counter = Counter(bigrams)
@@ -359,3 +386,28 @@ def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_pat
         reference_stage_labels += class_prediction.tolist()
 
     print('Stage accuracy: ', exact_match([valid_stage_labels], [reference_stage_labels]))
+    return valid_stage_labels, reference_stage_labels
+
+def calculate_positional_accuracy(generated_stage_label_doc, reference_stage_label_doc, num_bins_defaule=10):
+    bin_match_rate_global = []
+    for generated_stage_label, reference_stage_label in zip(generated_stage_label_doc, reference_stage_label_doc):
+        num_bins = min(num_bins_defaule, len(generated_stage_label))
+        plan_bin = split_bins(start=0, end=len(generated_stage_label), bins=num_bins)
+        bin_gaps = [plan_bin[i+1] - plan_bin[i] for i in range(num_bins)]
+        bin_match_cnt = [0]*num_bins
+        for i in range(len(generated_stage_label)):
+            bin_idx = np.digitize(i, plan_bin) - 1
+            if generated_stage_label[i] == reference_stage_label[i]:
+                bin_match_cnt[bin_idx] += 1
+        bin_match_rate = [cnt/bin_gaps[i] for i, cnt in enumerate(bin_match_cnt)]
+        bin_match_rate_global.append(bin_match_rate)
+
+    positional_accuracy = []
+    for i in range(num_bins_defaule):
+        temp_match_rate_list = []
+        for line in bin_match_rate_global:
+            if i<len(line):
+                temp_match_rate_list.append(line[i])
+        positional_accuracy.append(np.average(temp_match_rate_list))
+    print(positional_accuracy)
+    print('Positional accuracy: ', np.average(positional_accuracy))
