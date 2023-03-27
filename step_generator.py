@@ -13,92 +13,8 @@ import numpy as np
 import argparse
 from torch.utils.data import Dataset, DataLoader
 from accelerate import Accelerator
+from dataclass import T5StepLevelNewsTrainingDataset, T5StepLevelNewsInferenceDataset, T5StepLevelRecipeTrainingDataset
 
-class T5StepLevelTrainingDataset(Dataset):
-    def __init__(self, data, stage_tags=None, tokenizer=None):
-        self.headline = data['headline']
-        self.input_context = data['input_context']
-        self.target_text = data['target_text']
-        self.stage_label = data['stage_label']
-        self.stage_plan = data['stage_plan']
-        self.sid = data['s_id']
-        # self.tags = data['stage_plan']
-        self.tokenizer = tokenizer
-        if stage_tags:
-            self.stage_tags = stage_tags
-        else:
-            self.stage_tags = ['<main event>', '<consequence>', '<previous event>', '<current context>', 
-                               '<historical event>', '<funture consequences>', '<journalist evaluation>', 
-                               '<anecdotal event>']
-
-    def __len__(self):
-        return len(self.headline)
-
-    def __getitem__(self, idx):        
-        ## Instruction version 3: with Code and explanation
-        # instruction_prompt = "The schema for discourse structure is defined below: "+\
-        #         "<main event>: The major subject of the news article. "+\
-        #         "<consequence>: An event or phenomenon that is caused by the main event. "+\
-        #         "<previous event>: A specific event that occurred shortly before the main event. "+\
-        #         "<current context>: The general context or worldstate immediately preceding the main event. "+\
-        #         "<historical event>: An event occurring much earlier than the main event. "+\
-        #         "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
-        #         "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
-        #         "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. "
-
-        # instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
-        #                     self.stage_tags[self.stage_label[idx]], 
-        #                     self.headline[idx],
-        #                     self.input_context[idx]
-        #                     )
-        
-        # Instruction version 4: with Code, explanation, only previous stage context
-        instruction_prompt = "The schema for discourse structure is defined below: "+\
-                "<main event>: The major subject of the news article. "+\
-                "<consequence>: An event or phenomenon that is caused by the main event. "+\
-                "<previous event>: A specific event that occurred shortly before the main event. "+\
-                "<current context>: The general context or worldstate immediately preceding the main event. "+\
-                "<historical event>: An event occurring much earlier than the main event. "+\
-                "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
-                "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
-                "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
-        if self.sid[idx] == 0:
-            instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
-                                self.stage_tags[self.stage_label[idx]], 
-                                self.headline[idx]
-                                )
-        else:
-            instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
-            ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
-            instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
-                                self.stage_tags[self.stage_label[idx]], 
-                                self.headline[idx]
-                                )
-            
-        # # Instruction version 4: with Code, explanation, only previous stage context
-        # instruction_prompt = "The schema for discourse structure is defined below: "+\
-        #         "<main event>: The major subject of the news article. "+\
-        #         "<consequence>: An event or phenomenon that is caused by the main event. "+\
-        #         "<previous event>: A specific event that occurred shortly before the main event. "+\
-        #         "<current context>: The general context or worldstate immediately preceding the main event. "+\
-        #         "<historical event>: An event occurring much earlier than the main event. "+\
-        #         "<funture consequences>: An analytical insight into future consequences or projections made by the journalist. "+\
-        #         "<journalist evaluation>: A summary, opinion or comment made by the journalist. "+\
-        #         "<anecdotal event>: Anecdotal events are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
-
-        # instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
-        # ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
-        # instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
-        # ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][self.sid[idx]+1:]]))
-        # instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
-        #                     self.stage_tags[self.stage_label[idx]], 
-        #                     self.headline[idx]
-        #                     )
-        
-        self.stage_label[idx]
-        return {'instruction': instruction_prompt,
-                'target_text': self.target_text[idx],
-        }
 
 def batch_encode(input, reference, tokenizer, input_max_length=1024, output_max_length=1024):
     encoded_input = tokenizer(input, 
@@ -118,33 +34,6 @@ def batch_encode(input, reference, tokenizer, input_max_length=1024, output_max_
     encoding['attention_mask'] = encoded_input.attention_mask.squeeze(0)
     encoding['labels'][encoding['labels'] == tokenizer.pad_token_id] = -100
     return encoding
-
-class T5StepLevelInferenceDataset(Dataset):
-    def __init__(self, data, stage_tags=None, tokenizer=None):
-        self.headline = data['headline']
-        self.input_context = data['input_context']
-        self.target_text = data['target_text']
-        self.stage_label = data['stage_label']
-        # self.tags = data['stage_plan']
-        self.tokenizer = tokenizer
-        if stage_tags:
-            self.stage_tags = stage_tags
-        else:
-            self.stage_tags = ['main event', 'consequence', 'previous event', 'current context', 'historical event',
-                                'funture consequences', 'journalist evaluation', 'anecdotal event']
-
-    def __len__(self):
-        return len(self.headline)
-
-    def __getitem__(self, idx):        
-        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                            self.stage_tags[self.stage_label[idx]], 
-                            self.headline[idx],
-                            self.input_context[idx]
-                            )
-        return {'instruction': instruction_prompt,
-                'target_text': self.target_text[idx],
-        }
 
 
 def eval_model(args, model, data_loader, device):
@@ -183,7 +72,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--preprocessed_data_path', help='The path to the preprocessed data.')
     parser.add_argument('--model_saving_path', help='The path to save the trained model.')
+    # When the model is continued to be trained, this should be set to the name of the model.
     parser.add_argument('--model_name', help='The name of the model to be trained.', default=None)
+    # When the model is continued to be trained, this should be set to the number of steps the model has been trained.
+    parser.add_argument('--beginning_step', type=int, help='The step to begin training.', default=0) 
+    parser.add_argument('--dataset', type=str, help='Which dataset to train on. News or Recipes', default='news')
+    parser.add_argument('--prompt_version', type=int, help='Which prompt instruction to use.', default=1)
     parser.add_argument('--lr', type=float)
     parser.add_argument('--l2_decay', type=float)
     parser.add_argument('--epoch', type=int)
@@ -196,6 +90,9 @@ if __name__ == '__main__':
     parser.add_argument('--logging_steps', type=int, default=500, help='Print loss every this number of steps.')
     parser.add_argument('--warmup_steps', type=int, default=200)
     args = parser.parse_args()
+
+    if args.dataset not in ['news', 'recipe']:
+        raise ValueError('The dataset should be either "news" or "recipe".')
 
     if torch.cuda.is_available():
         print ('Cuda is available.')
@@ -222,30 +119,55 @@ if __name__ == '__main__':
         data = json.load(outfile)
 
     if args.model_name:
+        # continue training
         model_name = args.model_name
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
     else:
         model_name = "google/flan-t5-base"
-    tokenizer = T5Tokenizer.from_pretrained(model_name)
-    model = T5ForConditionalGeneration.from_pretrained(model_name)
+        tokenizer = T5Tokenizer.from_pretrained(model_name)
+        model = T5ForConditionalGeneration.from_pretrained(model_name)
+        # Add special tokens, '<' is not in the vocab of Flan-T5
+        special_tokens_dict = {'additional_special_tokens': ['<']}
+        num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
+        model.resize_token_embeddings(len(tokenizer))
+
     model = model.to(device)
     if args.multi_gpu_training:
         model = torch.nn.parallel.DataParallel(model)
  
-    train_dataset = T5StepLevelTrainingDataset(data['train_data'],
-                                            tokenizer=tokenizer)
+    if args.dataset == 'news':
+        train_dataset = T5StepLevelNewsTrainingDataset(data['train_data'],
+                                                tokenizer=tokenizer,
+                                                prompt_version=args.prompt_version)
 
-    valid_dataset = T5StepLevelTrainingDataset(data['valid_data'],
-                                            tokenizer=tokenizer)
+        valid_dataset = T5StepLevelNewsTrainingDataset(data['valid_data'],
+                                                tokenizer=tokenizer,
+                                                prompt_version=args.prompt_version)
+    elif args.dataset == 'recipe':
+        train_dataset = T5StepLevelRecipeTrainingDataset(data['train_data'],
+                                                tokenizer=tokenizer,
+                                                prompt_version=args.prompt_version)
+
+        valid_dataset = T5StepLevelRecipeTrainingDataset(data['valid_data'],
+                                                tokenizer=tokenizer,
+                                                prompt_version=args.prompt_version)
 
     train_data_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     valid_data_loader = DataLoader(valid_dataset, batch_size=args.batch_size*5, shuffle=True)
 
     # print(train_dataset[0]['instruction'])
+    # print(train_dataset[1]['instruction'])
     # assert False
+
     total_steps = args.epoch * len(train_data_loader)
-    print('total training steps is {}.\n Warmup steps is {}.\n Loss print for every {} step.\n'.format(total_steps, 
-        args.warmup_steps, args.logging_steps))
+    if args.beginning_step != 0:
+        total_steps += args.beginning_step
+
+    print('total training steps is {}, continue from {}.\n Warmup steps is {}.\n Loss print for every {} step.\n'.format(total_steps, 
+        args.beginning_step, args.warmup_steps, args.logging_steps))
     print('Epoch number is {}.\n Batch size is {}.'.format(args.epoch, args.batch_size))
+
 
     optimizer = AdamW(model.parameters(), lr=args.lr)
     scheduler = get_cosine_schedule_with_warmup(optimizer, 
@@ -260,7 +182,7 @@ if __name__ == '__main__':
     model.train()
 
     global_step = 0
-    pbar=tqdm(total=total_steps)
+    pbar=tqdm(total=total_steps, initial=args.beginning_step)
     loss_sum_log = 0
     loss_sum_to_optimize = 0
     for epoch in range(args.epoch):
@@ -291,12 +213,6 @@ if __name__ == '__main__':
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
-            
-            # # parameter update
-            # if idx+1 % args.gradient_accumulation_step == 0:
-            #     optimizer.step()
-            #     scheduler.step()
-            #     optimizer.zero_grad()
 
 
             # print intermediate result

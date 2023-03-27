@@ -29,6 +29,12 @@ def extract_instruction(text, return_list=False):
         text = text.replace(token, '')
     return text, text_list
 
+def clean_ingredient(ingredient):
+    pattern = r"\d+\s?(\d)?(\/\d)?\s*-?(c\.|tbsp\.|ounce|box|cup|package|gram|cc|oz|lb|lb\.|ml|g|kg|teaspoon|tablespoon|can|tsp|pound)?s?\s+"
+    cleaned_ingredient = re.sub(pattern, "", ingredient, flags=re.IGNORECASE)
+    return cleaned_ingredient.strip()
+
+
 def sentence_splitter(text_doc, flat=False):
     splitted_doc = []
     for doc in text_doc:
