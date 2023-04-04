@@ -36,7 +36,11 @@ class T5StepLevelNewsTrainingDataset(Dataset):
         if self.prompt_version == 1:
             pass    
         elif self.prompt_version == 2:
-            pass
+            instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+                    self.stage_tags[self.stage_label[idx]], 
+                    self.headline[idx],
+                    self.input_context[idx]
+                    )
         elif self.prompt_version == 3:
             # Instruction version 3: with Code and explanation
             instruction_prompt = self.discourse_definiton
