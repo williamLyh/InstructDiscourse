@@ -108,7 +108,7 @@ if __name__ == '__main__':
 
         outputs = model.generate(encoded_prompt['input_ids'].to(device),
                                 attention_mask=encoded_prompt['attention_mask'].to(device),
-                                max_length=1024,
+                                max_length=128,
                                 do_sample=True,
                                 early_stopping=True,
                                 num_return_sequences=1,
