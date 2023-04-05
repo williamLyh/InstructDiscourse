@@ -46,28 +46,41 @@ def sentence_splitter(text_doc, flat=False):
             splitted_doc.append(ans)
     return splitted_doc
 
-# Reshape the sentence stage label to document level
-def reshape_stage_label_to_document_level(generated_stage_labels, reference_stage_labels, reference_doc):
-    '''The generated_stage_labels and reference_stage_labels are in flatten shape. 
+# # Reshape the sentence stage label to document level
+# def reshape_stage_label_to_document_level(generated_stage_labels, reference_stage_labels, reference_doc):
+#     '''The generated_stage_labels and reference_stage_labels are in flatten shape. 
+#     This function reshape them to document level.
+#     The reference_doc has the document level structure that we can use to reshape the stage labels.
+#     '''
+#     generated_stage_label_doc = []
+#     reference_stage_label_doc = []
+
+#     global_list_idx = 0
+#     for doc_list in reference_doc.values():
+#         temp_generated_stage_label = []
+#         temp_reference_stage_label = []
+#         for sid, sent in enumerate(doc_list):
+#             temp_generated_stage_label.append(generated_stage_labels[global_list_idx])
+#             temp_reference_stage_label.append(reference_stage_labels[global_list_idx])
+#             global_list_idx += 1
+#         generated_stage_label_doc.append(temp_generated_stage_label)
+#         reference_stage_label_doc.append(temp_reference_stage_label)
+
+#     generated_stage_label_doc[0], reference_stage_label_doc[0]
+#     return generated_stage_label_doc, reference_stage_label_doc
+
+def reshape_flatten_list_to_document_shape(flatten_list, reference_doc):
+    '''The flatten_list is in flatten shape. 
     This function reshape them to document level.
     The reference_doc has the document level structure that we can use to reshape the stage labels.
     '''
-    generated_stage_label_doc = []
-    reference_stage_label_doc = []
-
+    reshaped_doc = []
     global_list_idx = 0
-    for doc_list in reference_doc.values():
-        temp_generated_stage_label = []
-        temp_reference_stage_label = []
-        for sid, sent in enumerate(doc_list):
-            temp_generated_stage_label.append(generated_stage_labels[global_list_idx])
-            temp_reference_stage_label.append(reference_stage_labels[global_list_idx])
-            global_list_idx += 1
-        generated_stage_label_doc.append(temp_generated_stage_label)
-        reference_stage_label_doc.append(temp_reference_stage_label)
-
-    generated_stage_label_doc[0], reference_stage_label_doc[0]
-    return generated_stage_label_doc, reference_stage_label_doc
+    for doc in reference_doc.values():
+        cur_doc_length = len(doc)
+        reshaped_doc.append(flatten_list[global_list_idx:global_list_idx+cur_doc_length])
+        global_list_idx += cur_doc_length
+    return reshaped_doc
 
 ##################################################################
 ## N-gram Auxiliary Functions
@@ -326,7 +339,7 @@ def evaluate_fluency(predicted_text, reference_text):
     rouge_score = rouge.get_scores(predicted_text, reference_text)
     rouge_score = np.mean([case['rouge-l']['f'] for case in rouge_score])
     print('Rouge-L Score: {}'.format(rouge_score))
-
+    return
     # Meteor
     
 
@@ -394,26 +407,52 @@ def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_pat
     print('Stage accuracy: ', exact_match([valid_stage_labels], [reference_stage_labels]))
     return valid_stage_labels, reference_stage_labels
 
-def calculate_positional_accuracy(generated_stage_label_doc, reference_stage_label_doc, num_bins_defaule=10):
-    bin_match_rate_global = []
-    for generated_stage_label, reference_stage_label in zip(generated_stage_label_doc, reference_stage_label_doc):
-        num_bins = min(num_bins_defaule, len(generated_stage_label))
-        plan_bin = split_bins(start=0, end=len(generated_stage_label), bins=num_bins)
-        bin_gaps = [plan_bin[i+1] - plan_bin[i] for i in range(num_bins)]
-        bin_match_cnt = [0]*num_bins
-        for i in range(len(generated_stage_label)):
-            bin_idx = np.digitize(i, plan_bin) - 1
-            if generated_stage_label[i] == reference_stage_label[i]:
-                bin_match_cnt[bin_idx] += 1
-        bin_match_rate = [cnt/bin_gaps[i] for i, cnt in enumerate(bin_match_cnt)]
-        bin_match_rate_global.append(bin_match_rate)
+# def calculate_positional_accuracy(generated_stage_label_doc, reference_stage_label_doc, num_bins_defaule=10):
+#     bin_match_rate_global = []
+#     for generated_stage_label, reference_stage_label in zip(generated_stage_label_doc, reference_stage_label_doc):
+#         num_bins = min(num_bins_defaule, len(generated_stage_label))
+#         plan_bin = split_bins(start=0, end=len(generated_stage_label), bins=num_bins)
+#         bin_gaps = [plan_bin[i+1] - plan_bin[i] for i in range(num_bins)]
+#         bin_match_cnt = [0]*num_bins
+#         for i in range(len(generated_stage_label)):
+#             bin_idx = np.digitize(i, plan_bin) - 1
+#             if generated_stage_label[i] == reference_stage_label[i]:
+#                 bin_match_cnt[bin_idx] += 1
+#         bin_match_rate = [cnt/bin_gaps[i] for i, cnt in enumerate(bin_match_cnt)]
+#         bin_match_rate_global.append(bin_match_rate)
 
-    positional_accuracy = []
-    for i in range(num_bins_defaule):
-        temp_match_rate_list = []
-        for line in bin_match_rate_global:
-            if i<len(line):
-                temp_match_rate_list.append(line[i])
-        positional_accuracy.append(np.average(temp_match_rate_list))
-    print(positional_accuracy)
-    print('Positional accuracy: ', np.average(positional_accuracy))
+#     positional_accuracy = []
+#     for i in range(num_bins_defaule):
+#         temp_match_rate_list = []
+#         for line in bin_match_rate_global:
+#             if i<len(line):
+#                 temp_match_rate_list.append(line[i])
+#         positional_accuracy.append(np.average(temp_match_rate_list))
+#     print(positional_accuracy)
+#     print('Positional accuracy: ', np.average(positional_accuracy))
+
+
+def claculate_positional_distribution(label_doc_list, num_bins_default=10):
+    '''Calculate the positional distribution of the document.
+    The positional distribution is the distribution of the labels at certain position of documents.
+    The bin is defined by the split_bins function.
+    '''
+    def split_bins(start=0, end=0, bins=4):
+        return tuple((np.linspace(start=start, stop=end, num=bins + 1)).astype(np.int32))
+
+    positional_label_distribution = [[] for _ in range(num_bins_default)]
+    for stage_label_doc in label_doc_list:
+        num_bins = min(num_bins_default, len(stage_label_doc))
+        bins = split_bins(start=0, end=len(stage_label_doc), bins=num_bins)
+        bin_cnt, bin_values = np.histogram(range(len(stage_label_doc)), bins=num_bins_default)
+        for idx, label in enumerate(stage_label_doc):
+            bin_idx = np.digitize(idx, bin_values[:-1])-1
+            positional_label_distribution[bin_idx].append(label)
+
+    positional_label_density = []
+    for labels in positional_label_distribution:
+        labels_counter = Counter(labels)
+        label_density = [labels_counter[label]/labels_counter.total() for label in range(8)] # 8 is the number of unique labels
+        positional_label_density.append(label_density)
+
+    return positional_label_density

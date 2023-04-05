@@ -19,7 +19,6 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
                 "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
                 "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
                 "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
-
     
     generated = ' '.join(generated_list)
     if prompt_version == 1:
@@ -61,16 +60,16 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
 
 
 if __name__ == '__main__':
-    step_data_path = '/mnt/nas_home/yl535/datasets/kaggle_all_the_news/preprocessed_step_level_data.json'
+    step_data_path = '/home/yinhong/Documents/datasets/kaggle_all_the_news/preprocessed_step_level_data.json'
     step_data = json.load(open(step_data_path, 'r'))
 
     train_data = {key:val for key, val in step_data['train_data'].items()}
     valid_data = {key:val for key, val in step_data['valid_data'].items()}
     
-    model_name = '/mnt/nas_home/yl535/InstructDiscourse/model-checkpoint/step-generator-flanT5-code-example/checkpoint-600000'
+    model_name = '/home/yinhong/Documents/source/InstructDiscourse/model-checkpoint/step-generator-flanT5-code-example/checkpoint-600000'
     tokenizer = T5Tokenizer.from_pretrained(model_name)
     model = T5ForConditionalGeneration.from_pretrained(model_name)
-    device = torch.device('cuda:0')
+    device = torch.device('cuda:1')
     model = model.to(device)
     model.eval()
 
@@ -81,7 +80,7 @@ if __name__ == '__main__':
 
     intermediate_savepoint = 150000
     resume_point = 0
-    data_saving_path = '/mnt/nas_home/yl535/datasets/kaggle_all_the_news/'
+    data_saving_path = '/home/yinhong/Documents/datasets/kaggle_all_the_news/'
 
     evaluation_size = len(dataset['input_context'])
     pbar = tqdm(total=evaluation_size, initial=resume_point)
@@ -108,7 +107,7 @@ if __name__ == '__main__':
 
         outputs = model.generate(encoded_prompt['input_ids'].to(device),
                                 attention_mask=encoded_prompt['attention_mask'].to(device),
-                                max_length=1024,
+                                max_length=256,
                                 do_sample=True,
                                 early_stopping=True,
                                 num_return_sequences=1,
