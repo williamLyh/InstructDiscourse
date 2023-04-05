@@ -226,7 +226,6 @@ def main():
     global_step = args.beginning_step
     pbar=tqdm(total=total_steps, initial=args.beginning_step)
     loss_sum_log = 0
-    loss_sum_to_optimize = 0
     for epoch in range(args.epoch):
         for idx, batch in enumerate(train_data_loader):
             global_step += 1
@@ -262,7 +261,6 @@ def main():
 
             # print intermediate result
             if global_step % args.logging_steps == 0:
-                average_denominator = global_step * args.batch_size
                 accelerator.print ('At training steps {}/{}, training loss is {},'.format(global_step, total_steps, loss_sum_log/args.logging_steps))
                 accelerator.print('The learning rate is {}.'.format(scheduler.get_last_lr()[0]))
                 loss_sum_log = 0
