@@ -15,9 +15,6 @@ import argparse
 from torch.utils.data import Dataset, DataLoader
 from accelerate import Accelerator
 from dataclass import T5StepLevelNewsTrainingDataset, T5StepLevelNewsInferenceDataset, T5StepLevelRecipeTrainingDataset
-import torch.distributed as dist
-import datetime
-from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def batch_encode(input, reference, tokenizer, input_max_length=1024, output_max_length=1024):
@@ -72,30 +69,6 @@ def eval_model(args, model, tokenizer, data_loader, device=None):
     pbar.close()
     model.train()
 
-def init_distributed():
-
-    # Initializes the distributed backend which will take care of synchronizing nodes/GPUs
-    dist_url = "env://" # default
-
-    # only works with torch.distributed.launch // torch.run
-    rank = int(os.environ["RANK"])
-    world_size = int(os.environ['WORLD_SIZE'])
-    local_rank = int(os.environ['LOCAL_RANK'])
-    dist.init_process_group(
-            backend="nccl",
-            init_method=dist_url,
-            world_size=world_size,
-            rank=rank)
-
-    # this will make all .cuda() calls work properly
-    torch.cuda.set_device(local_rank)
-
-    # synchronizes all the threads to reach this point before moving on
-    dist.barrier()
-
-def cleanup():
-    dist.destroy_process_group()
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -118,9 +91,6 @@ def main():
     parser.add_argument('--output_max_length', type=int, default=1024)
     parser.add_argument('--logging_steps', type=int, default=500, help='Print loss every this number of steps.')
     parser.add_argument('--warmup_steps', type=int, default=200)
-
-    parser.add_argument("--local_rank", type=int, default=0)
-    parser.add_argument("--local_world_size", type=int, default=1)
     args = parser.parse_args()
     # dist.init_process_group(backend='nccl', init_method='env://', timeout=datetime.timedelta(seconds=5400))
 
@@ -169,10 +139,6 @@ def main():
         model.resize_token_embeddings(len(tokenizer))
 
     model = model.to(device)
-    # local_rank = int(os.environ['LOCAL_RANK'])
-    # model = DDP(model, device_ids=[local_rank])
-    # if args.multi_gpu_training:
-    #     model = torch.nn.parallel.DataParallel(model)
  
     if args.dataset == 'news':
         train_dataset = T5StepLevelNewsTrainingDataset(data['train_data'],
@@ -198,13 +164,12 @@ def main():
     # print(train_dataset[1]['instruction'])
     # assert False
 
-    optimizer = AdamW(model.parameters(), lr=args.lr)
+    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.l2_decay)
     scheduler = get_cosine_schedule_with_warmup(optimizer, 
                                                 num_warmup_steps=args.warmup_steps, 
                                                 num_training_steps=args.epoch * len(train_data_loader)//args.gradient_accumulation_step
                                                 )
     optimizer.zero_grad()
-
 
     model, optimizer, train_data_loader, valid_data_loader, scheduler = accelerator.prepare(
         model, optimizer, train_data_loader, valid_data_loader, scheduler
@@ -240,9 +205,6 @@ def main():
                 batch_input_ids = batch_encoding['input_ids'].to(device)
                 batch_attention_mask = batch_encoding['attention_mask'].to(device)
                 batch_labels = batch_encoding['labels'].to(device)
-                # batch_input_ids = batch_encoding['input_ids']
-                # batch_attention_mask = batch_encoding['attention_mask']
-                # batch_labels = batch_encoding['labels']
 
             outputs = model(input_ids=batch_input_ids, 
                             attention_mask=batch_attention_mask, 

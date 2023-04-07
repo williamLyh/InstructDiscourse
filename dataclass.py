@@ -39,7 +39,7 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
                                 stage_tags_code[stage_plan[sid]], headline)
         else:
             instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
-            ' '.join([stage_tags[tag] for tag in stage_plan[:sid]]))
+            ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
             instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
                                 stage_tags_code[stage_plan[sid]], headline)
     elif prompt_version == 5:
@@ -87,49 +87,61 @@ class T5StepLevelNewsTrainingDataset(Dataset):
         return len(self.headline)
 
     def __getitem__(self, idx):    
-        if self.prompt_version == 1:
-            pass    
-        elif self.prompt_version == 2:
-            instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                    self.stage_tags[self.stage_label[idx]], 
-                    self.headline[idx],
-                    self.input_context[idx]
-                    )
-        elif self.prompt_version == 3:
-            # Instruction version 3: with Code and explanation
-            instruction_prompt = self.discourse_definiton
-            instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
-                                self.stage_tags[self.stage_label[idx]], 
-                                self.headline[idx],
-                                self.input_context[idx]
+        instruction_prompt = get_news_instruction_prompt(self.headline[idx], 
+                                self.stage_plan[idx], 
+                                self.sid[idx], 
+                                [self.input_context[idx]], 
+                                prompt_version=self.prompt_version 
                                 )
+        print(instruction_prompt)
+        # if self.prompt_version == 1:
+        #     instruction_prompt = get_news_instruction_prompt(self.headline[idx], 
+        #                                 self.stage_plan[idx], 
+        #                                 self.sid[idx], 
+        #                                 self.input_context[idx], 
+        #                                 prompt_version=self.prompt_version 
+        #                                 )
+        # elif self.prompt_version == 2:
+        #     instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+        #             self.stage_tags[self.stage_label[idx]], 
+        #             self.headline[idx],
+        #             self.input_context[idx]
+        #             )
+        # elif self.prompt_version == 3:
+        #     # Instruction version 3: with Code and explanation
+        #     instruction_prompt = self.discourse_definiton
+        #     instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
+        #                         self.stage_tags[self.stage_label[idx]], 
+        #                         self.headline[idx],
+        #                         self.input_context[idx]
+        #                         )
             
-        elif self.prompt_version == 4:
-        # Instruction version 4: with Code, explanation, only previous stage context
-            instruction_prompt = self.discourse_definiton
-            if self.sid[idx] == 0:
-                instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
-                                    self.stage_tags[self.stage_label[idx]], 
-                                    self.headline[idx]
-                                    )
-            else:
-                instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
-                ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
-                instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
-                                    self.stage_tags[self.stage_label[idx]], 
-                                    self.headline[idx]
-                                    )
-        elif self.prompt_version == 5:
-            # Instruction version 5: with Code, explanation, only previous stage context
-            instruction_prompt = self.discourse_definiton
-            instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
-            ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
-            instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
-            ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][self.sid[idx]+1:]]))
-            instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
-                                self.stage_tags[self.stage_label[idx]], 
-                                self.headline[idx]
-                                )
+        # elif self.prompt_version == 4:
+        # # Instruction version 4: with Code, explanation, only previous stage context
+        #     instruction_prompt = self.discourse_definiton
+        #     if self.sid[idx] == 0:
+        #         instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
+        #                             self.stage_tags[self.stage_label[idx]], 
+        #                             self.headline[idx]
+        #                             )
+        #     else:
+        #         instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
+        #         ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
+        #         instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
+        #                             self.stage_tags[self.stage_label[idx]], 
+        #                             self.headline[idx]
+        #                             )
+        # elif self.prompt_version == 5:
+        #     # Instruction version 5: with Code, explanation, only previous stage context
+        #     instruction_prompt = self.discourse_definiton
+        #     instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
+        #     ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][:self.sid[idx]]]))
+        #     instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
+        #     ' '.join([self.stage_tags[tag] for tag in self.stage_plan[idx][self.sid[idx]+1:]]))
+        #     instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
+        #                         self.stage_tags[self.stage_label[idx]], 
+        #                         self.headline[idx]
+        #                         )
         
         # self.stage_label[idx]
         return {'instruction': instruction_prompt,
@@ -225,6 +237,55 @@ class T5StepLevelRecipeTrainingDataset(Dataset):
             instruction_prompt += "\n".join(self.input_context[idx])
 
 
+        return {'instruction': instruction_prompt,
+                'target_text': self.target_text[idx],
+        }
+    
+
+
+class T5ParaphraseNewsTrainingDataset(Dataset):
+    def __init__(self, data, stage_tags=None, tokenizer=None, prompt_version=1):
+        self.headline = [datapoint['headline'] for datapoint in data]
+        self.input_text = [datapoint['input_doc'] for datapoint in data]
+        self.target_text = [datapoint['reference_doc'] for datapoint in data]
+        self.stage_plan = [datapoint['stage_plan'] for datapoint in data]
+        self.prompt_version = prompt_version
+        self.tokenizer = tokenizer
+        if stage_tags:
+            self.stage_tags = stage_tags
+        else:
+            self.stage_tags = ['<main event>', '<consequence>', '<previous event>', '<current context>', 
+                               '<historical event>', '<future consequences>', '<journalist evaluation>', 
+                               '<anecdotal event>']
+        self.discourse_definiton = "The schema for discourse structure is defined below: "+\
+                    "<main event> refers to the major subject of the news article. "+\
+                    "<consequence> refers to an event or phenomenon that is caused by the main event. "+\
+                    "<previous event> refers to a specific event that occurred shortly before the main event. "+\
+                    "<current context> refers to the general context or worldstate immediately preceding the main event. "+\
+                    "<historical event> refers to an event occurring much earlier than the main event. "+\
+                    "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
+                    "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
+                    "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
+
+    def __len__(self):
+        return len(self.headline)
+
+    def __getitem__(self, idx):    
+        if self.prompt_version == 1:
+            instruction_prompt = "Polish the following news article about {} to make it more fluent: {}".format(
+                    self.headline[idx],
+                    self.input_text[idx]
+            )
+
+        elif self.prompt_version == 2:
+            instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+                    self.stage_tags[self.stage_label[idx]], 
+                    self.headline[idx],
+                    self.input_context[idx]
+                    )
+
+        
+        # self.stage_label[idx]
         return {'instruction': instruction_prompt,
                 'target_text': self.target_text[idx],
         }
