@@ -2,61 +2,61 @@ import json
 import torch
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 from tqdm import tqdm
+from dataclass import get_news_instruction_prompt
 
-
-def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], prompt_version=1):
-    stage_tags = ['main event', 'consequence', 'previous event', 'current context', 'historical event',
-                                'future consequences', 'journalist evaluation', 'anecdotal event']
-    stage_tags_code = ['<main event>', '<consequence>', '<previous event>', '<current context>', '<historical event>',
-                                '<future consequences>', '<journalist evaluation>', '<anecdotal event>']
+# def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], prompt_version=1):
+#     stage_tags = ['main event', 'consequence', 'previous event', 'current context', 'historical event',
+#                                 'future consequences', 'journalist evaluation', 'anecdotal event']
+#     stage_tags_code = ['<main event>', '<consequence>', '<previous event>', '<current context>', '<historical event>',
+#                                 '<future consequences>', '<journalist evaluation>', '<anecdotal event>']
     
-    discourse_definition = "The schema for discourse structure is defined below: "+\
-                "<main event> refers to the major subject of the news article. "+\
-                "<consequence> refers to an event or phenomenon that is caused by the main event. "+\
-                "<previous event> refers to a specific event that occurred shortly before the main event. "+\
-                "<current context> refers to the general context or worldstate immediately preceding the main event. "+\
-                "<historical event> refers to an event occurring much earlier than the main event. "+\
-                "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
-                "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
-                "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
+#     discourse_definition = "The schema for discourse structure is defined below: "+\
+#                 "<main event> refers to the major subject of the news article. "+\
+#                 "<consequence> refers to an event or phenomenon that is caused by the main event. "+\
+#                 "<previous event> refers to a specific event that occurred shortly before the main event. "+\
+#                 "<current context> refers to the general context or worldstate immediately preceding the main event. "+\
+#                 "<historical event> refers to an event occurring much earlier than the main event. "+\
+#                 "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
+#                 "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
+#                 "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
     
-    generated = ' '.join(generated_list)
-    if prompt_version == 1:
-        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                        stage_tags[stage_plan[sid]], headline, generated)
+#     generated = ' '.join(generated_list)
+#     if prompt_version == 1:
+#         instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+#                         stage_tags[stage_plan[sid]], headline, generated)
     
-    elif prompt_version == 2:
-        instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                        stage_tags_code[stage_plan[sid]], headline, generated)
+#     elif prompt_version == 2:
+#         instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+#                         stage_tags_code[stage_plan[sid]], headline, generated)
     
-    elif prompt_version == 3:
-        # Instruction version 3: with Code and explanation
-        instruction_prompt = discourse_definition
-        instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
-                            stage_tags_code[stage_plan[sid]], headline, generated)
+#     elif prompt_version == 3:
+#         # Instruction version 3: with Code and explanation
+#         instruction_prompt = discourse_definition
+#         instruction_prompt += 'Continue writing a {} section for the below news article about {}: {}'.format(
+#                             stage_tags_code[stage_plan[sid]], headline, generated)
         
-    elif prompt_version == 4:
-    # Instruction version 4: with Code, explanation, only previous stage context
-        instruction_prompt = discourse_definition
-        if sid == 0:
-            instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
-                                stage_tags_code[stage_plan[sid]], headline)
-        else:
-            instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
-            ' '.join([stage_tags[tag] for tag in stage_plan[:sid]]))
-            instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
-                                stage_tags_code[stage_plan[sid]], headline)
-    elif prompt_version == 5:
-        # Instruction version 5: with Code, explanation, only previous stage context
-        instruction_prompt = discourse_definition
-        instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
-        ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
-        instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
-        ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
-        instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
-                            stage_tags_code[stage_plan[sid]], headline)
+#     elif prompt_version == 4:
+#     # Instruction version 4: with Code, explanation, only previous stage context
+#         instruction_prompt = discourse_definition
+#         if sid == 0:
+#             instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
+#                                 stage_tags_code[stage_plan[sid]], headline)
+#         else:
+#             instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
+#             ' '.join([stage_tags[tag] for tag in stage_plan[:sid]]))
+#             instruction_prompt += 'Continue writing a {} section for the news article about "{}".'.format(
+#                                 stage_tags_code[stage_plan[sid]], headline)
+#     elif prompt_version == 5:
+#         # Instruction version 5: with Code, explanation, only previous stage context
+#         instruction_prompt = discourse_definition
+#         instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
+#         ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
+#         instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
+#         ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
+#         instruction_prompt += 'Write a {} section for the news article about "{}".'.format(
+#                             stage_tags_code[stage_plan[sid]], headline)
     
-    return instruction_prompt
+#     return instruction_prompt
 
 
 if __name__ == '__main__':
