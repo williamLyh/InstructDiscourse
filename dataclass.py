@@ -93,7 +93,6 @@ class T5StepLevelNewsTrainingDataset(Dataset):
                                 [self.input_context[idx]], 
                                 prompt_version=self.prompt_version 
                                 )
-        print(instruction_prompt)
         # if self.prompt_version == 1:
         #     instruction_prompt = get_news_instruction_prompt(self.headline[idx], 
         #                                 self.stage_plan[idx], 

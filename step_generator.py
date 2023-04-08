@@ -243,15 +243,11 @@ def main():
                 else: 
                     os.makedirs(full_ckpt_save_path, exist_ok=True)
                 # save model
-                if args.multi_gpu_training:
-                    try:
-                        model.module.save_pretrained(full_ckpt_save_path)
-                    except:
-                        model.save_pretrained(full_ckpt_save_path)
-                    tokenizer.save_pretrained(full_ckpt_save_path)
-                else:
+                try:
+                    model.module.save_pretrained(full_ckpt_save_path)
+                except:
                     model.save_pretrained(full_ckpt_save_path)
-                    tokenizer.save_pretrained(full_ckpt_save_path)
+                tokenizer.save_pretrained(full_ckpt_save_path)
 
     pbar.close()
 
