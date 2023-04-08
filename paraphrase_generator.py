@@ -14,7 +14,7 @@ import numpy as np
 import argparse
 from torch.utils.data import Dataset, DataLoader
 from accelerate import Accelerator
-from dataclass import T5ParaphraseNewsTrainingDataset
+from dataclass import T5ParaphraseNewsDataset
 
 
 class T5DocLevelTrainingDataset(Dataset):
@@ -143,7 +143,7 @@ def eval_model(args, model, tokenizer, data_loader, device=None):
 
             loss += outputs.loss.mean().item()            
 
-        print('Evaluate on validation set. The loss is {}'.format(loss/(eval_step*args.batch_size)))
+        print('Evaluate on validation set. The loss is {}'.format(loss/(eval_step)))
     pbar.close()
     model.train()
 
@@ -218,11 +218,11 @@ if __name__ == '__main__':
     model = model.to(device)
 
     if args.dataset == 'news':
-        train_dataset = T5ParaphraseNewsTrainingDataset(data['train_data'],
+        train_dataset = T5ParaphraseNewsDataset(data['train_data'],
                                                 tokenizer=tokenizer,
                                                 prompt_version=args.prompt_version)
 
-        valid_dataset = T5ParaphraseNewsTrainingDataset(data['valid_data'],
+        valid_dataset = T5ParaphraseNewsDataset(data['valid_data'],
                                                 tokenizer=tokenizer,
                                                 prompt_version=args.prompt_version)
     elif args.dataset == 'recipe':

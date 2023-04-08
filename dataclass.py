@@ -243,7 +243,54 @@ class T5StepLevelRecipeTrainingDataset(Dataset):
     
 
 
-class T5ParaphraseNewsTrainingDataset(Dataset):
+# class T5ParaphraseNewsTrainingDataset(Dataset):
+#     def __init__(self, data, stage_tags=None, tokenizer=None, prompt_version=1):
+#         self.headline = [datapoint['headline'] for datapoint in data]
+#         self.input_text = [datapoint['input_doc'] for datapoint in data]
+#         self.target_text = [datapoint['reference_doc'] for datapoint in data]
+#         self.stage_plan = [datapoint['stage_plan'] for datapoint in data]
+#         self.prompt_version = prompt_version
+#         self.tokenizer = tokenizer
+#         if stage_tags:
+#             self.stage_tags = stage_tags
+#         else:
+#             self.stage_tags = ['<main event>', '<consequence>', '<previous event>', '<current context>', 
+#                                '<historical event>', '<future consequences>', '<journalist evaluation>', 
+#                                '<anecdotal event>']
+#         self.discourse_definiton = "The schema for discourse structure is defined below: "+\
+#                     "<main event> refers to the major subject of the news article. "+\
+#                     "<consequence> refers to an event or phenomenon that is caused by the main event. "+\
+#                     "<previous event> refers to a specific event that occurred shortly before the main event. "+\
+#                     "<current context> refers to the general context or worldstate immediately preceding the main event. "+\
+#                     "<historical event> refers to an event occurring much earlier than the main event. "+\
+#                     "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
+#                     "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
+#                     "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
+
+#     def __len__(self):
+#         return len(self.headline)
+
+#     def __getitem__(self, idx):    
+#         if self.prompt_version == 1:
+#             instruction_prompt = "Polish the following news article about {} to make it more fluent: {}".format(
+#                     self.headline[idx],
+#                     self.input_text[idx]
+#             )
+
+#         elif self.prompt_version == 2:
+#             instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
+#                     self.stage_tags[self.stage_label[idx]], 
+#                     self.headline[idx],
+#                     self.input_context[idx]
+#                     )
+
+        
+#         # self.stage_label[idx]
+#         return {'instruction': instruction_prompt,
+#                 'target_text': self.target_text[idx],
+#         }
+    
+class T5ParaphraseNewsDataset(Dataset):
     def __init__(self, data, stage_tags=None, tokenizer=None, prompt_version=1):
         self.headline = [datapoint['headline'] for datapoint in data]
         self.input_text = [datapoint['input_doc'] for datapoint in data]
@@ -278,13 +325,12 @@ class T5ParaphraseNewsTrainingDataset(Dataset):
             )
 
         elif self.prompt_version == 2:
-            instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
-                    self.stage_tags[self.stage_label[idx]], 
+            instruction_prompt = "Polish the following news article about {} to make it more fluent. It should follow the discourse structure of {}: {}".format(
                     self.headline[idx],
-                    self.input_context[idx]
-                    )
+                    ' '.join([self.stage_tags[stage] for stage in self.stage_plan[idx]]),
+                    self.input_text[idx]
+            )
 
-        
         # self.stage_label[idx]
         return {'instruction': instruction_prompt,
                 'target_text': self.target_text[idx],
