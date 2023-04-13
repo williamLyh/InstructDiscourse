@@ -86,15 +86,22 @@ def reshape_flatten_list_to_document_shape(flatten_list, reference_doc):
 ## N-gram Auxiliary Functions
 ##################################################################
 def exact_match(predict_seq, reference_seq):
+    # How much does the predicted plan match the reference plan? 
     match_cnt = 0
     total_cnt = 0
     for predicted_plan, reference_plan in zip(predict_seq, reference_seq):
-        for p1, p2 in zip(predicted_plan, reference_plan):
-            if p1 and p2 and p1==p2:
+        for idx, p1 in enumerate(predicted_plan):
+            if idx<len(reference_plan) and p1==reference_plan[idx]:
                 match_cnt += 1
-
         total_cnt += len(predicted_plan)
     return match_cnt/total_cnt
+
+    #     for p1, p2 in zip(predicted_plan, reference_plan):
+    #         if p1 and p2 and p1==p2:
+    #             match_cnt += 1
+
+    #     total_cnt += len(predicted_plan)
+    # return match_cnt/total_cnt
 
 def plan_to_unigram(plan):
     return [(stage) for stage in plan]
@@ -347,7 +354,7 @@ def evaluate_fluency(predicted_text, reference_text):
 ## Stage Accuracy
 ##################################################################
 
-def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_path, batch_size=32):
+def evaluate_stage_accuracy(stage_classifier_path, predicted_text, reference_text=None, reference_labels=None, batch_size=32, device_name='cuda'):
     '''Compute stage accuracy score
     predicted_text: list of generated text (list of string)
     reference_text: list of reference text (list of string)
@@ -376,36 +383,41 @@ def evaluate_stage_accuracy(predicted_text, reference_text, stage_classifier_pat
 
     bert_tokenizer = AutoTokenizer.from_pretrained(stage_classifier_path)
     model = AutoModelForSequenceClassification.from_pretrained(stage_classifier_path)
-    device = torch.device('cuda')
+    device = torch.device(device_name)
     model = model.to(device)
     model.eval()
 
     prediction_dataset = BertStageClassifierInferenceDataset(predicted_text,
                                             bert_tokenizer, max_length=256)
-    reference_dataset = BertStageClassifierInferenceDataset(reference_text,
-                                            bert_tokenizer, max_length=256)
     prediction_loader = DataLoader(prediction_dataset, batch_size=batch_size)
-    reference_loader = DataLoader(reference_dataset, batch_size=batch_size)
-
 
     valid_stage_labels = []
-    for batch in tqdm(prediction_loader):
+    for batch in prediction_loader:
         outputs = model(batch['input_ids'].to(device),
                         attention_mask = batch['attention_mask'].to(device))
         class_score = torch.softmax(outputs.logits,dim=-1)
         class_prediction = torch.argmax(class_score,dim=-1)
         valid_stage_labels += class_prediction.tolist()
 
-    reference_stage_labels = []
-    for batch in tqdm(reference_loader):
-        outputs = model(batch['input_ids'].to(device),
-                        attention_mask = batch['attention_mask'].to(device))
-        class_score = torch.softmax(outputs.logits,dim=-1)
-        class_prediction = torch.argmax(class_score,dim=-1)
-        reference_stage_labels += class_prediction.tolist()
-
-    print('Stage accuracy: ', exact_match([valid_stage_labels], [reference_stage_labels]))
-    return valid_stage_labels, reference_stage_labels
+    if reference_labels is not None and reference_text:
+        reference_dataset = BertStageClassifierInferenceDataset(reference_text,
+                                                bert_tokenizer, max_length=256)
+        reference_loader = DataLoader(reference_dataset, batch_size=batch_size)
+        reference_stage_labels = []
+        for batch in reference_loader:
+            outputs = model(batch['input_ids'].to(device),
+                            attention_mask = batch['attention_mask'].to(device))
+            class_score = torch.softmax(outputs.logits,dim=-1)
+            class_prediction = torch.argmax(class_score,dim=-1)
+            reference_stage_labels += class_prediction.tolist()
+        exact_match_rate = exact_match([valid_stage_labels], [reference_stage_labels])
+        # print('Stage accuracy: ', exact_match_rate)
+        return valid_stage_labels, reference_stage_labels, exact_match_rate
+    
+    else:
+        exact_match_rate = exact_match([valid_stage_labels], [reference_labels])
+        # print('Stage accuracy: ', exact_match_rate)
+        return valid_stage_labels, reference_labels, exact_match_rate
 
 # def calculate_positional_accuracy(generated_stage_label_doc, reference_stage_label_doc, num_bins_defaule=10):
 #     bin_match_rate_global = []
