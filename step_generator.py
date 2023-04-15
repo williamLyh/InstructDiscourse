@@ -55,9 +55,9 @@ def eval_model(args, model, tokenizer, data_loader, device=None):
                         )
 
             if args.cuda_available:
-                batch_input_ids = batch_encoding['input_ids']#.cuda(device)
-                batch_attention_mask = batch_encoding['attention_mask']#.cuda(device)
-                batch_labels = batch_encoding['labels']#.cuda(device)
+                batch_input_ids = batch_encoding['input_ids'].cuda(device)
+                batch_attention_mask = batch_encoding['attention_mask'].cuda(device)
+                batch_labels = batch_encoding['labels'].cuda(device)
 
             outputs = model(input_ids=batch_input_ids, 
                             attention_mask=batch_attention_mask, 
@@ -230,8 +230,8 @@ def main():
             # intermediate evaluation using validation data 
             if global_step % args.eval_steps == 0:
                 accelerator.print('Start evaluating the model on validation dataset: ')
-                # eval_model(args, model, tokenizer, valid_data_loader, device)
-                eval_model(args, model, tokenizer, valid_data_loader)
+                eval_model(args, model, tokenizer, valid_data_loader, device)
+                # eval_model(args, model, tokenizer, valid_data_loader)
 
             if global_step % args.save_steps == 0:
                 # save model
