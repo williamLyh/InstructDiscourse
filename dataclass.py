@@ -55,6 +55,8 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
     elif prompt_version == 6:
     # Instruction version 6: with Code, explanation, only previous stage context
         instruction_prompt = discourse_definition
+        capped_generated = generated.split(' ')[-300:]
+        capped_generated = ' '.join(capped_generated)
         if sid == 0:
             instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
                                 stage_tags_code[stage_plan[sid]], headline)
@@ -62,17 +64,19 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
             instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
             ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
             instruction_prompt += 'Continue writing a {} section for the news article about "{}": {}.'.format(
-                                stage_tags_code[stage_plan[sid]], headline, generated)
+                                stage_tags_code[stage_plan[sid]], headline, capped_generated)
             
     elif prompt_version == 7:
         # Instruction version 7: with Code, explanation, previous and future stage context, with generated text
         instruction_prompt = discourse_definition
+        capped_generated = generated.split(' ')[-300:]
+        capped_generated = ' '.join(capped_generated)
         instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
         ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
         instruction_prompt += "The later discourse structure of is defined below: \n\n{}\n\n".format(
         ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
         instruction_prompt += 'Continue writing a {} section for the news article about "{}": {}.'.format(
-                                stage_tags_code[stage_plan[sid]], headline, generated)
+                                stage_tags_code[stage_plan[sid]], headline, capped_generated)
     return instruction_prompt
 
 
