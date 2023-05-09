@@ -85,6 +85,7 @@ def main():
     parser.add_argument('--epoch', type=int)
     parser.add_argument('--batch_size_per_gpu', type=int)
     parser.add_argument('--save_steps', type=int)
+    parser.add_argument('--save_strategy', type=str, default='steps')
     parser.add_argument('--eval_steps', type=int)
     parser.add_argument('--gradient_accumulation_step', type=int, default=1)
     parser.add_argument('--input_max_length', type=int, default=1024)
@@ -233,7 +234,7 @@ def main():
                 eval_model(args, model, tokenizer, valid_data_loader, device)
                 # eval_model(args, model, tokenizer, valid_data_loader)
 
-            if global_step % args.save_steps == 0:
+            if args.save_strategy=='step' and global_step % args.save_steps == 0:
                 # save model
                 full_ckpt_save_path = args.model_saving_path + 'checkpoint-{}'.format(global_step)
                 accelerator.print('Saving model at ' + full_ckpt_save_path)
@@ -248,7 +249,21 @@ def main():
                 except:
                     model.save_pretrained(full_ckpt_save_path)
                 tokenizer.save_pretrained(full_ckpt_save_path)
-
+            
+        if args.save_stragegy == 'epoch':
+            # save model
+            full_ckpt_save_path = args.model_saving_path + 'checkpoint-{}'.format(global_step)
+            accelerator.print('Saving model at ' + full_ckpt_save_path)
+            if os.path.exists(full_ckpt_save_path):
+                pass
+            else: 
+                os.makedirs(full_ckpt_save_path, exist_ok=True)
+            # save model
+            try:
+                model.module.save_pretrained(full_ckpt_save_path)
+            except:
+                model.save_pretrained(full_ckpt_save_path)
+            tokenizer.save_pretrained(full_ckpt_save_path)
     pbar.close()
 
 if __name__ == '__main__':
