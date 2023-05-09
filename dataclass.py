@@ -55,7 +55,7 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
     elif prompt_version == 6:
     # Instruction version 6: with Code, explanation, only previous stage context
         instruction_prompt = discourse_definition
-        capped_generated = generated.split(' ')[-300:]
+        capped_generated = generated.split(' ')[-200:]
         capped_generated = ' '.join(capped_generated)
         if sid == 0:
             instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
@@ -69,7 +69,7 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
     elif prompt_version == 7:
         # Instruction version 7: with Code, explanation, previous and future stage context, with generated text
         instruction_prompt = discourse_definition
-        capped_generated = generated.split(' ')[-300:]
+        capped_generated = generated.split(' ')[-200:]
         capped_generated = ' '.join(capped_generated)
         instruction_prompt += "The previous discourse structure of is defined below: \n\n{}\n\n".format(
         ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
@@ -87,7 +87,7 @@ class T5StepLevelNewsTrainingDataset(Dataset):
         self.target_text = data['target_text']
         self.stage_label = data['stage_label']
         self.stage_plan = data['stage_plan']
-        self.sid = data['s_id']
+        self.sid = data['sid']
         self.prompt_version = prompt_version
         # self.tags = data['stage_plan']
         self.tokenizer = tokenizer

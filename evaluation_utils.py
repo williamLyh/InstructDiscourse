@@ -74,9 +74,11 @@ def reshape_flatten_list_to_document_shape(flatten_list, reference_doc):
     This function reshape them to document level.
     The reference_doc has the document level structure that we can use to reshape the stage labels.
     '''
+    if type(reference_doc) is dict:
+        reference_doc = list(reference_doc.values())
     reshaped_doc = []
     global_list_idx = 0
-    for doc in reference_doc.values():
+    for doc in reference_doc:
         cur_doc_length = len(doc)
         reshaped_doc.append(flatten_list[global_list_idx:global_list_idx+cur_doc_length])
         global_list_idx += cur_doc_length
@@ -399,7 +401,7 @@ def evaluate_stage_accuracy(stage_classifier_path, predicted_text, reference_tex
         class_prediction = torch.argmax(class_score,dim=-1)
         valid_stage_labels += class_prediction.tolist()
 
-    if reference_labels is not None and reference_text:
+    if reference_labels is None and reference_text:
         reference_dataset = BertStageClassifierInferenceDataset(reference_text,
                                                 bert_tokenizer, max_length=256)
         reference_loader = DataLoader(reference_dataset, batch_size=batch_size)
