@@ -77,6 +77,18 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
         ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
         instruction_prompt += 'Continue writing a {} section for the news article about "{}": {}.'.format(
                                 stage_tags_code[stage_plan[sid]], headline, capped_generated)
+        
+    elif prompt_version == 8:
+        # Instruction version 8: with Code, explanation, previous and future stage context, with generated text
+        capped_generated = generated.split(' ')[-200:]
+        capped_generated = ' '.join(capped_generated)
+        instruction_prompt = 'Write a {} section for the news article about "{}".\n\n'.format(
+                                stage_tags_code[stage_plan[sid]], headline)
+        instruction_prompt += "The previous discourse structure of is defined below: {}\n\n".format(
+        ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
+        instruction_prompt += "The later discourse structure of is defined below: {}\n\n".format(
+        ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
+        instruction_prompt += 'The previous generated context is: {} '.format(capped_generated)
     return instruction_prompt
 
 
