@@ -250,7 +250,7 @@ def main():
                     model.save_pretrained(full_ckpt_save_path)
                 tokenizer.save_pretrained(full_ckpt_save_path)
             
-        if args.save_stragegy == 'epoch':
+        if args.save_strategy == 'epoch':
             # save model
             full_ckpt_save_path = args.model_saving_path + 'checkpoint-{}'.format(global_step)
             accelerator.print('Saving model at ' + full_ckpt_save_path)

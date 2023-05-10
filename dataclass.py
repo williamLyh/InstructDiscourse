@@ -15,7 +15,15 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
                 "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist. "+\
                 "<journalist evaluation> refers to a summary, opinion or comment made by the journalist. "+\
                 "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event. \n\n"
-    
+    discourse_definition_list = ["<main event> refers to the major subject of the news article.",
+                "<consequence> refers to an event or phenomenon that is caused by the main event.",
+                "<previous event> refers to a specific event that occurred shortly before the main event.",
+                "<current context> refers to the general context or worldstate immediately preceding the main event.",
+                "<historical event> refers to an event occurring much earlier than the main event.",
+                "<future consequences> refers to an analytical insight into future consequences or projections made by the journalist.",
+                "<journalist evaluation> refers to a summary, opinion or comment made by the journalist.",
+                "<anecdotal event> refers to anecdotal events that are uncertain and cannot be verified. The primary purpose is to provide more emotional resonance to the main event."]
+
     generated = ' '.join(generated_list)
     if prompt_version == 1:
         instruction_prompt = 'Continue writing a {} section for the below news article about {}: {}'.format(
@@ -35,7 +43,7 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
     # Instruction version 4: with Code, explanation, only previous stage context
         instruction_prompt = discourse_definition
         if sid == 0:
-            instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
+            instruction_prompt += 'Write a {} section for a news article about "{}".'.format(
                                 stage_tags_code[stage_plan[sid]], headline)
         else:
             instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
@@ -58,10 +66,10 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
         capped_generated = generated.split(' ')[-200:]
         capped_generated = ' '.join(capped_generated)
         if sid == 0:
-            instruction_prompt += 'Writing a {} section for a news article about "{}".'.format(
+            instruction_prompt += 'Write a {} section for a news article about "{}".\n\n'.format(
                                 stage_tags_code[stage_plan[sid]], headline)
         else:
-            instruction_prompt += "The previous discourse structure is defined below: \n\n{}\n\n".format(
+            instruction_prompt += "The previous discourse structure is defined below: {}\n\n".format(
             ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
             instruction_prompt += 'Continue writing a {} section for the news article about "{}": {}.'.format(
                                 stage_tags_code[stage_plan[sid]], headline, capped_generated)
@@ -82,13 +90,13 @@ def get_news_instruction_prompt(headline, stage_plan, sid, generated_list=[], pr
         # Instruction version 8: with Code, explanation, previous and future stage context, with generated text
         capped_generated = generated.split(' ')[-200:]
         capped_generated = ' '.join(capped_generated)
-        instruction_prompt = 'Write a {} section for the news article about "{}".\n\n'.format(
-                                stage_tags_code[stage_plan[sid]], headline)
+        instruction_prompt = 'Write a {} section for the news article about "{}". {}\n\n'.format(
+                                stage_tags_code[stage_plan[sid]], headline, discourse_definition_list[stage_plan[sid]])
         instruction_prompt += "The previous discourse structure of is defined below: {}\n\n".format(
         ' '.join([stage_tags_code[tag] for tag in stage_plan[:sid]]))
         instruction_prompt += "The later discourse structure of is defined below: {}\n\n".format(
         ' '.join([stage_tags_code[tag] for tag in stage_plan[sid+1:]]))
-        instruction_prompt += 'The previous generated context is: {} '.format(capped_generated)
+        instruction_prompt += 'The previous generated news is: {} '.format(capped_generated)
     return instruction_prompt
 
 
