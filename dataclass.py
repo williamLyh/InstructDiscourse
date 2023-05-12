@@ -107,7 +107,7 @@ class T5StepLevelNewsTrainingDataset(Dataset):
         self.target_text = data['target_text']
         self.stage_label = data['stage_label']
         self.stage_plan = data['stage_plan']
-        self.sid = data['sid']
+        self.sid = data['s_id']
         self.prompt_version = prompt_version
         # self.tags = data['stage_plan']
         self.tokenizer = tokenizer
